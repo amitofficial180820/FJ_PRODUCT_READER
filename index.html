@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>First Jewellery – QR Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --mint:        #d4edda;
+    --mint-mid:    #a8d5b5;
+    --mint-deep:   #4caf78;
+    --green-dark:  #1b4332;
+    --green-ink:   #2d6a4f;
+    --cream:       #f7faf8;
+    --white:       #ffffff;
+    --card-shadow: 0 8px 40px rgba(27,67,50,.10);
+    --border:      1px solid rgba(76,175,120,.25);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Jost', sans-serif;
+    background: linear-gradient(160deg, #eaf7ef 0%, #f7faf8 60%, #d4edda 100%);
+    min-height: 100vh;
+    color: var(--green-dark);
+  }
+
+  /* HEADER */
+  header { text-align: center; padding: 36px 20px 24px; }
+  header::after {
+    content: ''; display: block;
+    width: 60px; height: 2px;
+    background: var(--mint-deep);
+    margin: 14px auto 0; border-radius: 2px;
+  }
+  .brand-tag {
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 4px; text-transform: uppercase;
+    color: var(--mint-deep); margin-bottom: 6px;
+  }
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300; font-size: clamp(28px, 6vw, 46px);
+    color: var(--green-dark); letter-spacing: 1px; line-height: 1.1;
+  }
+  h1 em { font-style: italic; color: var(--green-ink); }
+
+  /* SCANNER WRAP */
+  .scanner-wrap {
+    max-width: 480px; margin: 0 auto 32px; padding: 0 16px;
+  }
+  .scanner-card {
+    background: var(--white); border-radius: 20px;
+    padding: 24px; box-shadow: var(--card-shadow); border: var(--border);
+  }
+  .scanner-card h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px; font-weight: 600; color: var(--green-ink);
+    margin-bottom: 16px; text-align: center; letter-spacing: .5px;
+  }
+
+  /* CAMERA OVERLAY (shown while requesting / on error) */
+  #cam-overlay {
+    background: linear-gradient(145deg, #eaf7ef, #d4edda);
+    border-radius: 12px; min-height: 240px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px; padding: 28px; text-align: center;
+  }
+  #cam-overlay svg { color: var(--mint-deep); }
+  #cam-overlay p { font-size: 13px; color: var(--green-ink); line-height: 1.6; }
+
+  .spinner {
+    width: 34px; height: 34px;
+    border: 3px solid var(--mint-mid);
+    border-top-color: var(--mint-deep);
+    border-radius: 50%;
+    animation: spin .75s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* READER (hidden until camera is active) */
+  #reader { border-radius: 12px; overflow: hidden; display: none; }
+  #reader video { border-radius: 12px; width: 100% !important; }
+  #reader__scan_region { border-radius: 12px; }
+  /* hide noisy lib UI */
+  #reader__header_message,
+  #reader__dashboard_section_csr span:first-child,
+  #reader__filescan_input { display: none !important; }
+  #reader__status_span {
+    color: var(--green-ink) !important;
+    font-family: 'Jost', sans-serif !important;
+    font-size: 11px !important;
+  }
+
+  /* STOP BUTTON */
+  #stop-btn {
+    display: none; width: 100%; margin-top: 12px;
+    padding: 10px; border-radius: 10px;
+    border: 1.5px solid #e57373; background: transparent;
+    color: #c0392b; font-family: 'Jost', sans-serif;
+    font-size: 13px; font-weight: 500; letter-spacing: 1px;
+    cursor: pointer; transition: background .2s;
+  }
+  #stop-btn:hover { background: #fdecea; }
+
+  /* MANUAL ENTRY */
+  .divider-text {
+    text-align: center; font-size: 11px;
+    color: #aaa; letter-spacing: 2px; margin: 16px 0 8px;
+  }
+  .manual-row { display: flex; gap: 8px; }
+  .manual-row input {
+    flex: 1; padding: 10px 14px; border-radius: 10px;
+    border: var(--border); font-family: 'Jost', sans-serif;
+    font-size: 12px; color: var(--green-dark);
+    background: var(--cream); outline: none; transition: border-color .2s;
+  }
+  .manual-row input:focus { border-color: var(--mint-deep); }
+  .manual-row button {
+    padding: 10px 18px; border-radius: 10px; border: none;
+    background: var(--mint-deep); color: #fff;
+    font-family: 'Jost', sans-serif; font-size: 13px;
+    cursor: pointer; transition: background .2s; white-space: nowrap;
+  }
+  .manual-row button:hover { background: var(--green-ink); }
+
+  /* RESULT */
+  #result-section {
+    max-width: 480px; margin: 0 auto 48px;
+    padding: 0 16px; display: none;
+    animation: riseIn .45s cubic-bezier(.22,1,.36,1) both;
+  }
+  @keyframes riseIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .result-card {
+    background: var(--white); border-radius: 20px;
+    overflow: hidden; box-shadow: var(--card-shadow); border: var(--border);
+  }
+
+  /* PIC ZONE */
+  .pic-zone {
+    background: linear-gradient(145deg, #eaf7ef, #d4edda);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 220px; padding: 24px;
+  }
+  #product-img {
+    max-height: 200px; max-width: 100%;
+    border-radius: 12px; object-fit: contain;
+    box-shadow: 0 4px 20px rgba(27,67,50,.15); display: none;
+  }
+  #pic-placeholder {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+    color: var(--mint-deep); opacity: .75; text-align: center;
+  }
+  #pic-placeholder svg { width: 52px; height: 52px; }
+  #ph-text { font-size: 12px; letter-spacing: 1px; }
+
+  /* DETAILS */
+  .details-zone { padding: 22px 24px 26px; }
+  .sno-badge {
+    display: inline-block; background: var(--mint); color: var(--green-ink);
+    font-size: 10px; font-weight: 500; letter-spacing: 2px;
+    padding: 3px 12px; border-radius: 20px; margin-bottom: 6px; text-transform: uppercase;
+  }
+  .design-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 24px; font-weight: 600; color: var(--green-dark); margin-bottom: 18px;
+  }
+  .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-block {
+    background: var(--cream); border-radius: 12px;
+    padding: 11px 14px; border: var(--border);
+  }
+  .field-label {
+    font-size: 9px; font-weight: 500; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--mint-deep); margin-bottom: 4px;
+  }
+  .field-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 17px; color: var(--green-dark);
+  }
+  .color-dot {
+    display: inline-block; width: 10px; height: 10px;
+    border-radius: 50%; margin-right: 5px;
+    border: 1px solid rgba(0,0,0,.12); vertical-align: middle;
+  }
+  .weight-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .weight-chip {
+    background: linear-gradient(135deg, #eaf7ef, #d4edda);
+    border-radius: 12px; padding: 10px 8px;
+    text-align: center; border: var(--border);
+  }
+  .weight-chip .field-value { font-size: 19px; }
+  .unit { font-size: 10px; color: var(--mint-deep); margin-top: 2px; }
+  .scan-again-btn {
+    display: block; width: 100%; margin-top: 20px; padding: 12px;
+    border-radius: 12px; border: 1.5px solid var(--mint-deep);
+    background: transparent; color: var(--green-ink);
+    font-family: 'Jost', sans-serif; font-size: 13px; font-weight: 500;
+    letter-spacing: 1.5px; cursor: pointer; text-transform: uppercase;
+    transition: background .2s;
+  }
+  .scan-again-btn:hover { background: var(--mint); }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--green-dark); color: #fff;
+    padding: 10px 22px; border-radius: 30px;
+    font-size: 13px; transition: transform .3s ease;
+    z-index: 999; pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  footer {
+    text-align: center; padding: 16px;
+    font-size: 11px; color: #aaa;
+    letter-spacing: 1.5px; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>First <em>Jewellery</em></h1>
+</header>
+
+<div class="scanner-wrap">
+  <div class="scanner-card">
+    <h2>✦ QR READER ✦</h2>
+
+    <!-- Camera state overlay -->
+    <div id="cam-overlay">
+      <div class="spinner" id="spinner"></div>
+      <svg id="cam-icon" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 48 48">
+        <path d="M6 16v-4a4 4 0 014-4h4M42 16v-4a4 4 0 00-4-4h-4M6 32v4a4 4 0 004 4h4M42 32v4a4 4 0 01-4 4h-4"/>
+        <circle cx="24" cy="24" r="7"/>
+      </svg>
+      <p id="cam-status">Requesting camera access…</p>
+    </div>
+
+    <div id="reader"></div>
+    <button id="stop-btn" onclick="stopScan()">■ &nbsp;Stop Scanner</button>
+
+    <div class="divider-text">— or enter tag data manually —</div>
+    <div class="manual-row">
+      <input id="manual-input" placeholder="01,FJN-21,200,POL NP,11 INCH,GREEN,12.52,5,25.9" />
+      <button onclick="parseManual()">Go →</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT CARD -->
+<div id="result-section">
+  <div class="result-card">
+    <div class="pic-zone">
+      <div id="pic-placeholder">
+        <svg fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 48 48">
+          <rect x="6" y="6" width="36" height="36" rx="6"/>
+          <circle cx="18" cy="18" r="4"/>
+          <path d="M6 30l10-10 8 8 6-6 12 12"/>
+        </svg>
+        <p id="ph-text">No Image Found</p>
+      </div>
+      <img id="product-img" src="" alt="Product" onerror="imgFailed()" onload="imgLoaded()">
+    </div>
+
+    <div class="details-zone">
+      <div class="sno-badge" id="sno-badge">S.No —</div>
+      <div class="design-title" id="design-title">Design Number</div>
+
+      <div class="fields-grid">
+        <div class="field-block">
+          <div class="field-label">Category</div>
+          <div class="field-value" id="f-category">—</div>
+        </div>
+        <div class="field-block">
+          <div class="field-label">Size</div>
+          <div class="field-value" id="f-size">—</div>
+        </div>
+        <div class="field-block">
+          <div class="field-label">Color</div>
+          <div class="field-value" id="f-color">—</div>
+        </div>
+        <div class="field-block">
+          <div class="field-label">Making Charge</div>
+          <div class="field-value" id="f-making">—</div>
+        </div>
+      </div>
+
+      <div class="weight-row">
+        <div class="weight-chip">
+          <div class="field-label">Gross Wt</div>
+          <div class="field-value" id="f-gross">—</div>
+          <div class="unit">grams</div>
+        </div>
+        <div class="weight-chip">
+          <div class="field-label">Net Wt</div>
+          <div class="field-value" id="f-net">—</div>
+          <div class="unit">grams</div>
+        </div>
+        <div class="weight-chip">
+          <div class="field-label">Bead Wt</div>
+          <div class="field-value" id="f-bead">—</div>
+          <div class="unit">grams</div>
+        </div>
+      </div>
+
+      <button class="scan-again-btn" onclick="resetScanner()">↩ &nbsp;Scan Another Tag</button>
+    </div>
+  </div>
+</div>
+
+<footer>First Jewellery © 2026 &nbsp;·&nbsp; All rights reserved</footer>
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   ██████╗  █████╗  ██████╗██╗  ██╗███████╗███╗   ██╗██████╗
+   ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝████╗  ██║██╔══██╗
+   ██████╔╝███████║██║     █████╔╝ █████╗  ██╔██╗ ██║██║  ██║
+   ██╔══██╗██╔══██║██║     ██╔═██╗ ██╔══╝  ██║╚██╗██║██║  ██║
+   ██████╔╝██║  ██║╚██████╗██║  ██╗███████╗██║ ╚████║██████╔╝
+   GOOGLE DRIVE FOLDER IDs — PASTE YOUR IDs BELOW
+   Each string is the folder ID from the Drive URL:
+   https://drive.google.com/drive/folders/  <<< THIS PART >>>
+   Add one per line inside the array.
+═══════════════════════════════════════════════════════════════════ */
+const DRIVE_FOLDER_IDS = [
+ '1hziqQhSh3_wDipcCD8A3LYKVM3nWagQy'
+  // 'FOLDER_ID_2_PASTE_HERE',
+  // 'FOLDER_ID_3_PASTE_HERE',
+];
+/* ═══════════════════════════════════════════════════════════════════ */
+
+const FIELD_KEYS = [
+  'sno', 'designNumber', 'makingCharge',
+  'category', 'size', 'color',
+  'grossWeight', 'netWeight', 'beadWeight'
+];
+
+let scanner       = null;
+let scannerActive = false;
+
+/* ── AUTO-START CAMERA ON PAGE LOAD ──────────────────────────────── */
+window.addEventListener('load', initCamera);
+
+async function initCamera() {
+  const spinner  = document.getElementById('spinner');
+  const camIcon  = document.getElementById('cam-icon');
+  const status   = document.getElementById('cam-status');
+  const overlay  = document.getElementById('cam-overlay');
+  const readerEl = document.getElementById('reader');
+  const stopBtn  = document.getElementById('stop-btn');
+
+  // Show loading spinner
+  spinner.style.display = 'block';
+  camIcon.style.display = 'none';
+  status.textContent    = 'Requesting camera access…';
+
+  try {
+    // Ask browser for permission (shows the native permission prompt)
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    });
+    // Release immediately — library will re-acquire
+    stream.getTracks().forEach(t => t.stop());
+
+    // Permission granted
+    overlay.style.display  = 'none';
+    readerEl.style.display = 'block';
+    stopBtn.style.display  = 'block';
+
+    scanner = new Html5Qrcode('reader');
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 12, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 },
+      onQRSuccess,
+      () => {} // suppress per-frame decode errors
+    );
+    scannerActive = true;
+
+  } catch (err) {
+    spinner.style.display = 'none';
+    camIcon.style.display = 'block';
+
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      status.textContent = '📷 Camera permission denied.\nPlease allow camera access in your browser settings and reload the page.';
+    } else if (err.name === 'NotFoundError') {
+      status.textContent = '📷 No camera found on this device.\nUse the manual entry field below.';
+    } else {
+      status.textContent = '📷 Camera unavailable.\nUse the manual entry field below.';
+    }
+  }
+}
+
+/* ── STOP SCANNER ─────────────────────────────────────────────────── */
+function stopScan() {
+  if (!scanner || !scannerActive) return;
+  scanner.stop().then(() => {
+    scannerActive = false;
+    document.getElementById('reader').style.display    = 'none';
+    document.getElementById('stop-btn').style.display  = 'none';
+    document.getElementById('cam-overlay').style.display = 'flex';
+    document.getElementById('spinner').style.display   = 'none';
+    document.getElementById('cam-icon').style.display  = 'block';
+    document.getElementById('cam-status').textContent  = 'Scanner paused. Use manual entry or tap "Scan Another Tag" to restart.';
+  }).catch(() => {});
+}
+
+/* ── QR DECODE SUCCESS ───────────────────────────────────────────── */
+function onQRSuccess(decodedText) {
+  showToast('✦ Tag Scanned!');
+  stopScan();
+  parseData(decodedText);
+}
+
+/* ── MANUAL ENTRY ─────────────────────────────────────────────────── */
+function parseManual() {
+  const val = document.getElementById('manual-input').value.trim();
+  if (!val) { showToast('Please enter tag data'); return; }
+  parseData(val);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('manual-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') parseManual();
+  });
+});
+
+/* ── PARSE COMMA-SEPARATED DATA ──────────────────────────────────── */
+function parseData(raw) {
+  const parts = raw.split(',').map(s => s.trim());
+  const data  = {};
+  FIELD_KEYS.forEach((key, i) => {
+    data[key] = (parts[i] !== undefined && parts[i] !== '') ? parts[i] : '—';
+  });
+  displayResult(data);
+}
+
+/* ── RENDER RESULT CARD ───────────────────────────────────────────── */
+function colorHex(name) {
+  const map = {
+    green:'#4caf78', red:'#e57373',    blue:'#64b5f6',
+    gold:'#ffd54f',  white:'#f5f5f5',  black:'#333333',
+    pink:'#f48fb1',  purple:'#ce93d8', yellow:'#fff176',
+    silver:'#cfd8dc',orange:'#ffb74d', maroon:'#c62828',
+    brown:'#8d6e63', beige:'#d7ccc8',  cream:'#f5f0e8',
+    np:'#b2dfdb'
+  };
+  return map[(name || '').toLowerCase()] || '#b2dfdb';
+}
+
+function displayResult(data) {
+  document.getElementById('sno-badge').textContent    = `S.No  ${data.sno}`;
+  document.getElementById('design-title').textContent = data.designNumber;
+  document.getElementById('f-category').textContent   = data.category;
+  document.getElementById('f-size').textContent       = data.size;
+  document.getElementById('f-making').textContent     = '₹ ' + data.makingCharge;
+  document.getElementById('f-gross').textContent      = data.grossWeight;
+  document.getElementById('f-net').textContent        = data.netWeight;
+  document.getElementById('f-bead').textContent       = data.beadWeight;
+
+  const hex = colorHex(data.color);
+  document.getElementById('f-color').innerHTML =
+    `<span class="color-dot" style="background:${hex}"></span>${data.color}`;
+
+  loadProductImage(data.designNumber);
+
+  const sec = document.getElementById('result-section');
+  sec.style.display = 'block';
+  setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+}
+
+/* ── IMAGE LOOKUP via Google Drive ───────────────────────────────── */
+function loadProductImage(designNumber) {
+  const img = document.getElementById('product-img');
+  const ph  = document.getElementById('pic-placeholder');
+  const pht = document.getElementById('ph-text');
+
+  img.style.display = 'none';
+  ph.style.display  = 'flex';
+
+  if (DRIVE_FOLDER_IDS.length === 0) {
+    pht.textContent = 'Drive not configured';
+    return;
+  }
+
+  pht.textContent = 'Searching Drive…';
+
+  // Build a scoped Google Drive search URL for the design number
+  const driveSearchUrl =
+    'https://drive.google.com/drive/search?q=' + encodeURIComponent(designNumber);
+
+  ph.innerHTML = `
+    <svg fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 48 48" width="48" height="48">
+      <rect x="6" y="6" width="36" height="36" rx="6"/>
+      <circle cx="18" cy="18" r="4"/>
+      <path d="M6 30l10-10 8 8 6-6 12 12"/>
+    </svg>
+    <p style="font-size:12px;letter-spacing:.5px;margin-top:2px;">${designNumber}</p>
+    <a href="${driveSearchUrl}" target="_blank" rel="noopener" style="
+      margin-top:10px; display:inline-flex; align-items:center; gap:6px;
+      padding:8px 18px; background:var(--green-dark); color:#fff;
+      border-radius:20px; font-size:11px;
+      font-family:'Jost',sans-serif; letter-spacing:1.2px;
+      text-decoration:none; transition:background .2s;
+    " onmouseover="this.style.background='#2d6a4f'"
+       onmouseout="this.style.background='#1b4332'">
+      View in Drive ↗
+    </a>`;
+}
+
+function imgFailed() {
+  document.getElementById('product-img').style.display = 'none';
+  document.getElementById('pic-placeholder').style.display = 'flex';
+  document.getElementById('ph-text').textContent = 'Image not found';
+}
+function imgLoaded() {
+  document.getElementById('product-img').style.display = 'block';
+  document.getElementById('pic-placeholder').style.display = 'none';
+}
+
+/* ── RESET & RESTART ─────────────────────────────────────────────── */
+function resetScanner() {
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('manual-input').value = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Re-initialise camera
+  setTimeout(initCamera, 300);
+}
+
+/* ── TOAST ───────────────────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>
